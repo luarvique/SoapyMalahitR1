@@ -10,6 +10,11 @@
 class DubokSDR : public SoapySDR::Device
 {
   public:
+    static const unsigned int SW_HIGHZ  = 0x0004;
+    static const unsigned int SW_PREAMP = 0x0008;
+    static const unsigned int SW_BIAST  = 0x0001;
+    static const unsigned int SW_LOOP   = 0x0002;
+
     DubokSDR();
     ~DubokSDR();
 

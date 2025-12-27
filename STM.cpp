@@ -37,11 +37,11 @@ bool STM::go() const
 void STM::printData(const char *label, const unsigned char *data, unsigned int length) const
 {
   fprintf(stderr, "=== %s ===\n", label);
-  for(int j=0 ; j<length ; j+=16)
+  for(unsigned int j=0 ; j<length ; j+=16)
   {
-    for(int i=0 ; (i<16) && (j+i<length) ; i++)
+    for(unsigned int i=0 ; (i<16) && (j+i<length) ; i++)
       fprintf(stderr, "%02X ", data[j+i]);
-    for(int i=0 ; (i<16) && (j+i<length) ; i++)
+    for(unsigned int i=0 ; (i<16) && (j+i<length) ; i++)
     {
       unsigned char c = data[j+i];
       fprintf(stderr, "%c", (c>=' ') && (c<0x7F)? c:'.');
@@ -253,7 +253,7 @@ bool STM::getFirmware(const char *firmwareFile) const
 
   for(j=0 ; j<FIRMWARE_SIZE ; j+=sizeof(buf))
   {
-    fprintf(stderr, "STM::getFirmware('%s'): Reading %dkB from 0x%X...\n", firmwareFile, sizeof(buf)>>10, j);
+    fprintf(stderr, "STM::getFirmware('%s'): Reading %ldkB from 0x%X...\n", firmwareFile, sizeof(buf)>>10, j);
     if(!fwRead(buf, j, sizeof(buf))) break;
     if(fwrite(buf, 1, sizeof(buf), F) != sizeof(buf)) break;
   }
@@ -297,7 +297,7 @@ bool STM::updateFirmware(const char *firmwareFile, bool force) const
     // Write data from file into STM
     for(j=0 ; j<FIRMWARE_SIZE ; j+=sizeof(buf))
     {
-      fprintf(stderr, "STM::updateFirmware('%s'): Writing %dkB to 0x%X...\n", firmwareFile, sizeof(buf)>>10, j);
+      fprintf(stderr, "STM::updateFirmware('%s'): Writing %ldkB to 0x%X...\n", firmwareFile, sizeof(buf)>>10, j);
       if(fread(buf, 1, sizeof(buf), F) != sizeof(buf)) break;
       if(!fwWrite(buf, j, sizeof(buf))) break;
     }

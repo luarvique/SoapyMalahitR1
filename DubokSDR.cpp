@@ -48,8 +48,9 @@ bool DubokSDR::reportBattery(size_t samples)
   statusCount = 0;
 
   // Get STM status
-  char id[32], ver[32], ch;
-  if(!stmDevice.getStatus(&voltage, &current, &charge, &ch, id, ver)) return(false);
+  char id[32], ch;
+  unsigned int ver;
+  if(!stmDevice.getStatus(&voltage, &current, &charge, &ch, id, &ver)) return(false);
 
   // Determine charger status
   charger = ch!='\0';
@@ -57,7 +58,7 @@ bool DubokSDR::reportBattery(size_t samples)
   // Save STM chip ID and firmware version to a file
   if(f = fopen(idPipeName, "wb"))
   {
-    fprintf(f, "%s %s\n", id, ver);
+    fprintf(f, "%s %.2f\n", id, ver / 100.0f);
     fclose(f);
   }
 
@@ -88,20 +89,9 @@ bool DubokSDR::updateRadio()
 unsigned int DubokSDR::getFirmwareVersion() const
 {
   unsigned int version = 0;
-  char ver[32];
 
   // If got firmware version from the STM device...
-  if(stmDevice.getStatus(0, 0, 0, 0, 0, ver))
-  {
-    // Get numeric version number
-    version = (isdigit(ver[0])? ver[0] - '0' : 0) * 100;
-    version+= (isdigit(ver[2])? ver[2] - '0' : 0) * 10;
-    version+= isdigit(ver[3])? ver[3] - '0' : 0;
-    // But make sure there is a dot and an EOLN
-    if((ver[1]!='.') || (ver[4]!='\0')) version = 0;
-  }
-
-  return(version);
+  return(stmDevice.getStatus(0, 0, 0, 0, 0, &version)? version:0);
 }
 
 bool DubokSDR::updateFirmware(const char *firmwareFile, bool force) const
@@ -327,16 +317,16 @@ void DubokSDR::setAntenna(const int direction, const size_t channel, const std::
 {
   bool loop = name == "Loop";
 
-  if(loop != !!(switches & GPIO::SW_LOOP))
+  if(loop != !!(switches & SW_LOOP))
   {
-    switches = (switches & ~GPIO::SW_LOOP) | (loop? GPIO::SW_LOOP : 0);
+    switches = (switches & ~SW_LOOP) | (loop? SW_LOOP : 0);
     updateRadio();
   }
 }
 
 std::string DubokSDR::getAntenna(const int direction, const size_t channel) const
 {
-  return(!!(switches & GPIO::SW_LOOP)? "Loop" : "Regular");
+  return(!!(switches & SW_LOOP)? "Loop" : "Regular");
 }
 
 /*******************************************************************
@@ -655,21 +645,21 @@ void DubokSDR::writeSetting(const std::string &key, const std::string &value)
 {
   fprintf(stderr, "writeSetting('%s', '%s')\n", key.c_str(), value.c_str());
 
-  if(key=="biasT" && !!(switches & GPIO::SW_BIAST)!=(value=="true"))
+  if(key=="biasT" && !!(switches & SW_BIAST)!=(value=="true"))
   {
-    switches = (switches & ~GPIO::SW_BIAST) | (value=="true"? GPIO::SW_BIAST : 0);
+    switches = (switches & ~SW_BIAST) | (value=="true"? SW_BIAST : 0);
     updateRadio();
   }
 
-  if(key=="highZ" && !!(switches & GPIO::SW_HIGHZ)!=(value=="true"))
+  if(key=="highZ" && !!(switches & SW_HIGHZ)!=(value=="true"))
   {
-    switches = (switches & ~GPIO::SW_HIGHZ) | (value=="true"? GPIO::SW_HIGHZ : 0);
+    switches = (switches & ~SW_HIGHZ) | (value=="true"? SW_HIGHZ : 0);
     updateRadio();
   }
 
-  if(key=="lna" && !!(switches & GPIO::SW_PREAMP)!=(value=="true"))
+  if(key=="lna" && !!(switches & SW_PREAMP)!=(value=="true"))
   {
-    switches = (switches & ~GPIO::SW_PREAMP) | (value=="true"? GPIO::SW_PREAMP : 0);
+    switches = (switches & ~SW_PREAMP) | (value=="true"? SW_PREAMP : 0);
     updateRadio();
   }
 
@@ -682,9 +672,9 @@ void DubokSDR::writeSetting(const std::string &key, const std::string &value)
 
 std::string DubokSDR::readSetting(const std::string &key) const
 {
-  if(key=="biasT")       return std::to_string(!!(switches & GPIO::SW_BIAST));
-  if(key=="highZ")       return std::to_string(!!(switches & GPIO::SW_HIGHZ));
-  if(key=="lna")         return std::to_string(!!(switches & GPIO::SW_PREAMP));
+  if(key=="biasT")       return std::to_string(!!(switches & SW_BIAST));
+  if(key=="highZ")       return std::to_string(!!(switches & SW_HIGHZ));
+  if(key=="lna")         return std::to_string(!!(switches & SW_PREAMP));
   if(key=="attenuator")  return std::to_string(attenuator);
   if(key=="voltage")     return std::to_string(stmDevice.getVbat());
   if(key=="charger")     return std::to_string(false);
