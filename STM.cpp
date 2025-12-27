@@ -278,7 +278,7 @@ bool STM::updateFirmware(const char *firmwareFile, bool force) const
   // Obtain new firmware version from the filename
   p = strrchr(firmwareFile, '/');
   p = p? p+1 : firmwareFile;
-  if(p && (sscanf(p, "dubok-fw-%u.bin", &newVersion)!=1)) newVersion = 0;
+  if(p && (sscanf(p, "malahit-r1-fw-%u.bin", &newVersion)!=1)) newVersion = 0;
 
   // If updating firmware...
   if((newVersion > oldVersion) || force)

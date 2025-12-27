@@ -109,7 +109,7 @@ bool DubokSDR::updateFirmware(const char *firmwareFile, bool force) const
 
   // Obtain new firmware version from the filename
   p = strrchr(firmwareFile, '/');
-  if(p && (sscanf(p, "dubok-fw-%u.bin", &newVersion)!=1)) newVersion = 0;
+  if(p && (sscanf(p, "malahit-r1-fw-%u.bin", &newVersion)!=1)) newVersion = 0;
 
   // If updating firmware...
   if((newVersion > oldVersion) || force)
@@ -708,4 +708,4 @@ SoapySDR::Device *makeDubokSDR(const SoapySDR::Kwargs &args)
 /***********************************************************************
  * Registration
  **********************************************************************/
-static SoapySDR::Registry registerDubokSDR("dubok", &findDubokSDR, &makeDubokSDR, SOAPY_SDR_ABI_VERSION);
+static SoapySDR::Registry registerDubokSDR("malahit-rr", &findDubokSDR, &makeDubokSDR, SOAPY_SDR_ABI_VERSION);
