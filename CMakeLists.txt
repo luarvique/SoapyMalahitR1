@@ -1,0 +1,57 @@
+########################################################################
+# Project setup -- only needed if device support is a stand-alone build
+# We recommend that the support module be built in-tree with the driver.
+########################################################################
+cmake_minimum_required(VERSION 2.6)
+project(SoapySDRDubokSDR CXX)
+enable_testing()
+
+#select the release build type by default to get optimization flags
+if(NOT CMAKE_BUILD_TYPE)
+   set(CMAKE_BUILD_TYPE "Release")
+   message(STATUS "Build type not specified: defaulting to release.")
+endif(NOT CMAKE_BUILD_TYPE)
+set(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE STRING "")
+
+########################################################################
+# Header and library resources needed to communicate with the device.
+# These may be found within the build tree or in an external project.
+########################################################################
+set(MY_DEVICE_INCLUDE_DIRS "")
+set(MY_DEVICE_LIBRARIES "")
+
+########################################################################
+# build the module
+########################################################################
+find_package(SoapySDR CONFIG)
+if (NOT SoapySDR_FOUND)
+    message(WARNING "SoapySDR development files not found - skipping support")
+    return()
+endif ()
+
+find_package(ALSA REQUIRED)
+if (NOT ALSA_FOUND)
+    message(WARNING "ALSA development files not found - skipping support")
+    return()
+endif ()
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBGPIOD QUIET libgpiod)
+
+if (NOT LIBGPIOD_FOUND)
+    message(WARNING "libgpiod development files not found - GPIO support may be missing")
+else()
+    message(STATUS "Using libgpiod: ${LIBGPIOD_CFLAGS} ${LIBGPIOD_LDFLAGS}")
+endif()
+
+include_directories(${ALSA_INCLUDE_DIRS})
+SOAPY_SDR_MODULE_UTIL(
+    TARGET DubokSDR
+    SOURCES DubokSDR.cpp
+    SOURCES GPIO.cpp
+    SOURCES ALSA.cpp
+    SOURCES I2C.cpp
+    SOURCES SPI.cpp
+    SOURCES STM.cpp
+    LIBRARIES ${ALSA_LIBRARIES} gpiod
+)

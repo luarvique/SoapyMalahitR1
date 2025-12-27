@@ -1,0 +1,25 @@
+Source: soapy-malahit-rr
+Section: libs
+Priority: optional
+Maintainer: Marat Fayzullin <luarvique@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), cmake, libsoapysdr-dev, libgpiod-dev, libasound2-dev
+Standards-Version: 4.5.0
+Homepage: https://fms.komkon.org/OWRX/
+Vcs-Git: https://github.com/luarvique/SoapyDubok.git
+Vcs-Browser: https://github.com/luarvique/SoapyDubok
+
+Package: soapysdr0.8-module-malahit-rr
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Soapy Malahit RR - Malahit RR device support for Soapy SDR.
+ A Soapy module that supports Malahit RR devices within the Soapy API.
+
+Package: soapysdr-module-malahit-rr
+Architecture: all
+Depends: soapysdr0.8-module-malahit-rr, ${misc:Depends}
+Description: Soapy Malahit RR - Malahit RR device support for Soapy SDR.
+ A Soapy module that supports Malahit RR devices within the Soapy API.
+ .
+ This is an empty dependency package that pulls in the Malahit RR module
+ for the default version of libsoapysdr.

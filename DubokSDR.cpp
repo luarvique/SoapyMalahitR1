@@ -1,0 +1,721 @@
+#include "DubokSDR.hpp"
+#include <SoapySDR/Registry.hpp>
+
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+
+typedef struct
+{
+  char magic[6];
+  char voltage[2]; // 6
+  char current[2]; // 8
+  char charging;   // 10
+  char charge;     // 11
+  char uid[12];    // 12
+  char version[4]; // 24
+  char crcok;      // 28
+  char padding[3];
+} STMState;
+
+DubokSDR::DubokSDR()
+{
+  // Hard-reset attached hardware
+  stmDevice.reset();
+  // Start STM receiver
+  stmDevice.go();
+  // Update hardware with initial settings
+  updateRadio();
+}
+
+DubokSDR::~DubokSDR()
+{
+  // Close audio device
+  alsaDevice.close();
+}
+
+bool DubokSDR::reportBattery(size_t samples)
+{
+  float voltage;
+  float current;
+  char charge;
+  bool charger;
+  FILE *f;
+
+  // Do not report until accumulated enough time (10+ seconds)
+  statusCount += samples;
+  if(statusCount<sampleRate*10) return(true);
+  statusCount = 0;
+
+  // Get STM status
+  char id[32], ver[32], ch;
+  if(!stmDevice.getStatus(&voltage, &current, &charge, &ch, id, ver)) return(false);
+
+  // Determine charger status
+  charger = ch!='\0';
+
+  // Save STM chip ID and firmware version to a file
+  if(f = fopen(idPipeName, "wb"))
+  {
+    fprintf(f, "%s %s\n", id, ver);
+    fclose(f);
+  }
+
+  // This file will be used to report battery status
+  f = fopen(statusPipeName, "wb");
+  if(!f) return(false);
+
+  // Report battery status
+  bool result = fprintf(f, "%.2fV%s %.2fA %d%%\n", voltage, charger? "!":"", current, charge) > 0;
+  fclose(f);
+
+  // Done
+  return(result);
+}
+
+bool DubokSDR::updateRadio()
+{
+  // Apply frequency correction
+  unsigned int frequency = curFrequency * (1.0 + curFreqCorrection / 1000000.0);
+
+  fprintf(stderr, "updateRadio(): Freq=%dHz, SW=0x%X, ATT=%d\n",
+    frequency, switches, attenuator
+  );
+
+  return(stmDevice.update(frequency, switches, attenuator, gain));
+}
+
+unsigned int DubokSDR::getFirmwareVersion() const
+{
+  unsigned int version = 0;
+  char ver[32];
+
+  // If got firmware version from the STM device...
+  if(stmDevice.getStatus(0, 0, 0, 0, 0, ver))
+  {
+    // Get numeric version number
+    version = (isdigit(ver[0])? ver[0] - '0' : 0) * 100;
+    version+= (isdigit(ver[2])? ver[2] - '0' : 0) * 10;
+    version+= isdigit(ver[3])? ver[3] - '0' : 0;
+    // But make sure there is a dot and an EOLN
+    if((ver[1]!='.') || (ver[4]!='\0')) version = 0;
+  }
+
+  return(version);
+}
+
+bool DubokSDR::updateFirmware(const char *firmwareFile, bool force) const
+{
+  // Assume no firmware for now
+  unsigned int oldVersion = 0;
+  unsigned int newVersion = 0;
+  unsigned int addr, len;
+  const char *p;
+
+  // Get current firmware version
+  oldVersion = getFirmwareVersion();
+  if(!oldVersion)
+    fprintf(stderr, "updateFirmware('%s'): Failed obtaining current version!\n", firmwareFile);
+
+  // Obtain new firmware version from the filename
+  p = strrchr(firmwareFile, '/');
+  if(p && (sscanf(p, "dubok-fw-%u.bin", &newVersion)!=1)) newVersion = 0;
+
+  // If updating firmware...
+  if((newVersion > oldVersion) || force)
+  {
+    unsigned char buf[0x4000];
+
+    fprintf(stderr, "updateFirmware('%s'): Updating firmware %03u => %03u...\n", firmwareFile, oldVersion, newVersion);
+
+    FILE *F = fopen(firmwareFile, "rb");
+    if(!F)
+    {
+      fprintf(stderr, "updateFirmware('%s'): Failed opening file!\n", firmwareFile);
+      return(false);
+    }
+
+    // Hard-reset STM device
+    stmDevice.reset();
+/*Geo
+    // Program firmware
+    for(addr = len = 0 ; addr < STM::FIRMWARE_SIZE ; addr += len)
+    {
+      // Read next 16kB firmware block from file
+      len = fread(buf, 1, 0x4000, F);
+      if(!len) break;
+
+      // Send data to the STM device
+      if(!stmDevice.fwWrite(buf, addr, len))
+      {
+        fprintf(stderr, "updateFirmware('%s'): Failed writing %d bytes to 0x%X)!\n", firmwareFile, len, addr);
+        fclose(F);
+        return(false);
+      }
+    }
+*/
+    // Done with the file
+    fclose(F);
+
+    // Hard-reset STM device
+    stmDevice.reset();
+
+    // Check the updated firmware version
+    oldVersion = getFirmwareVersion();
+    if(oldVersion != newVersion)
+    {
+      fprintf(stderr, "updateFirmware('%s'): Failed updating firmware, still at version %03u!\n", firmwareFile, oldVersion);
+      return(false);
+    }
+
+    fprintf(stderr, "updateFirmware('%s'): Updated 0x%X bytes, version is %03u.\n", firmwareFile, addr, oldVersion);
+  }
+
+  // We are ok
+  return(true);
+}
+
+/*******************************************************************
+ * Identification API
+ ******************************************************************/
+
+std::string DubokSDR::getDriverKey(void) const
+{
+  return("DubokSDR");
+}
+
+std::string DubokSDR::getHardwareKey(void) const
+{
+  return("DubokSDR");
+}
+
+SoapySDR::Kwargs DubokSDR::getHardwareInfo(void) const
+{
+  SoapySDR::Kwargs result;
+
+  // @@@ TODO!
+
+  return(result);
+}
+
+/*******************************************************************
+ * Channels API
+ ******************************************************************/
+
+size_t DubokSDR::getNumChannels(const int direction) const
+{
+  // We only support one channel
+  return(1);
+}
+
+/*******************************************************************
+ * Stream API
+ ******************************************************************/
+
+std::vector<std::string> DubokSDR::getStreamFormats(const int direction, const size_t channel) const
+{
+  std::vector<std::string> result;
+
+  // We only support one channel, with CS16 data
+  if(channel==0) result.push_back("CS16");
+
+  return(result);
+}
+
+std::string DubokSDR::getNativeStreamFormat(const int direction, const size_t channel, double &fullScale) const
+{
+  // We only support CS16 data format
+  return("CS16");
+}
+
+SoapySDR::ArgInfoList DubokSDR::getStreamArgsInfo(const int direction, const size_t channel) const
+{
+  SoapySDR::ArgInfoList result;
+  return(result);
+}
+
+SoapySDR::Stream *DubokSDR::setupStream(const int direction, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args)
+{
+  // We only have one channel
+  if((channels.size()>1) || ((channels.size()>0) && (channels.at(0)>0)))
+    throw std::runtime_error("setupStream invalid channel selection");
+
+  // We only support CS16 data format
+  if(format!="CS16")
+    throw std::runtime_error("setupStream invalid format '" + format + "'");
+
+  // Return our ALSA device (may not be open yet)
+  return(reinterpret_cast<SoapySDR::Stream *>(&alsaDevice));
+}
+
+void DubokSDR::closeStream(SoapySDR::Stream *stream)
+{
+  // Close ALSA device
+  (reinterpret_cast<ALSA *>(stream))->close();
+}
+
+size_t DubokSDR::getStreamMTU(SoapySDR::Stream *stream) const
+{
+  // Assuming that MTU is essentially a chunk
+  return(chunkSize);
+}
+
+int DubokSDR::activateStream(SoapySDR::Stream *stream, const int flags, const long long timeNs, const size_t numElems)
+{
+  // Open ALSA device
+  ALSA *device = reinterpret_cast<ALSA *>(stream);
+  return(device->open(alsaDeviceName, sampleRate, chunkCount * chunkSize, chunkSize)? 0 : -1);
+}
+
+int DubokSDR::deactivateStream(SoapySDR::Stream *stream, const int flags, const long long timeNs)
+{
+  // Close ALSA device
+  ALSA *device = reinterpret_cast<ALSA *>(stream);
+  device->close();
+  return(0);
+}
+
+int DubokSDR::readStream(SoapySDR::Stream *stream, void * const *buffs, const size_t numElems, int &flags, long long &timeNs, const long timeoutUs)
+{
+  // Report SW6106 status
+  reportBattery(numElems);
+  // Read data from the ALSA device
+  ALSA *device = reinterpret_cast<ALSA *>(stream);
+  return(device->read(buffs[0], numElems/16));
+}
+
+/*******************************************************************
+ * Direct buffer access API
+ ******************************************************************/
+
+size_t DubokSDR::getNumDirectAccessBuffers(SoapySDR::Stream *stream)
+{
+  // No direct access
+  return(0);
+}
+
+int DubokSDR::getDirectAccessBufferAddrs(SoapySDR::Stream *stream, const size_t handle, void **buffs)
+{
+  // No direct access
+  return(-1);
+}
+
+int DubokSDR::acquireReadBuffer(SoapySDR::Stream *stream, size_t &handle, const void **buffs, int &flags, long long &timeNs, const long timeoutUs)
+{
+  // No direct access
+  return(-1);
+}
+
+void DubokSDR::releaseReadBuffer(SoapySDR::Stream *stream, const size_t handle)
+{
+  // No direct access
+}
+
+/*******************************************************************
+ * Antenna API
+ ******************************************************************/
+
+std::vector<std::string> DubokSDR::listAntennas(const int direction, const size_t channel) const
+{
+  std::vector<std::string> result;
+  result.push_back("Regular");
+  result.push_back("Loop");
+  return(result);
+}
+
+void DubokSDR::setAntenna(const int direction, const size_t channel, const std::string &name)
+{
+  bool loop = name == "Loop";
+
+  if(loop != !!(switches & GPIO::SW_LOOP))
+  {
+    switches = (switches & ~GPIO::SW_LOOP) | (loop? GPIO::SW_LOOP : 0);
+    updateRadio();
+  }
+}
+
+std::string DubokSDR::getAntenna(const int direction, const size_t channel) const
+{
+  return(!!(switches & GPIO::SW_LOOP)? "Loop" : "Regular");
+}
+
+/*******************************************************************
+ * Frontend corrections API
+ ******************************************************************/
+
+bool DubokSDR::hasDCOffsetMode(const int direction, const size_t channel) const
+{
+  // No DC offset yet
+  return(false);
+}
+
+bool DubokSDR::hasFrequencyCorrection(const int direction, const size_t channel) const
+{
+  return(true);
+}
+
+void DubokSDR::setFrequencyCorrection(const int direction, const size_t channel, const double value)
+{
+  if(value != curFreqCorrection)
+  {
+    curFreqCorrection = value;
+    updateRadio();
+  }
+}
+
+double DubokSDR::getFrequencyCorrection(const int direction, const size_t channel) const
+{
+  return(curFreqCorrection);
+}
+
+/*******************************************************************
+ * Gain API
+ ******************************************************************/
+
+std::vector<std::string> DubokSDR::listGains(const int direction, const size_t channel) const
+{
+  std::vector<std::string> results;
+  results.push_back("MAIN");
+  return(results);
+}
+
+bool DubokSDR::hasGainMode(const int direction, const size_t channel) const
+{
+  // No gain mode
+  return(false);
+}
+
+void DubokSDR::setGainMode(const int direction, const size_t channel, const bool automatic)
+{
+  // No gain control
+}
+
+bool DubokSDR::getGainMode(const int direction, const size_t channel) const
+{
+  // No gain control
+  return(false);
+}
+
+void DubokSDR::setGain(const int direction, const size_t channel, const double value)
+{
+  setGain(direction, channel, "MAIN", value);
+}
+
+void DubokSDR::setGain(const int direction, const size_t channel, const std::string &name, const double value)
+{
+   SoapySDR::Range range = getGainRange(direction, channel, name);
+   int v = round(
+     value<range.minimum()? range.minimum()
+   : value>range.maximum()? range.maximum()
+   : value);
+
+  if((name=="MAIN") && (v!=gain))
+  {
+    gain = v;
+    updateRadio();
+  }
+}
+
+double DubokSDR::getGain(const int direction, const size_t channel) const
+{
+  return(getGain(direction, channel, "MAIN"));
+}
+
+double DubokSDR::getGain(const int direction, const size_t channel, const std::string &name) const
+{
+  return(name=="MAIN"? (double)gain : 0.0);
+}
+
+SoapySDR::Range DubokSDR::getGainRange(const int direction, const size_t channel) const
+{
+  return(getGainRange(direction, channel, "MAIN"));
+}
+
+SoapySDR::Range DubokSDR::getGainRange(const int direction, const size_t channel, const std::string &name) const
+{
+  return(name=="MAIN"? SoapySDR::Range(0.0, 63.0) : SoapySDR::Range(0.0, 0.0));
+}
+
+/*******************************************************************
+ * Frequency API
+ ******************************************************************/
+
+void DubokSDR::setFrequency(const int direction, const size_t channel, const double frequency, const SoapySDR::Kwargs &args)
+{
+  setFrequency(direction, channel, "MAIN", frequency, args);
+}
+
+void DubokSDR::setFrequency(const int direction, const size_t channel, const std::string &name, const double frequency, const SoapySDR::Kwargs &args)
+{
+  // If frequency changes...
+  if(frequency != curFrequency)
+  {
+    // New frequency now in effect
+    curFrequency = frequency;
+    updateRadio();
+  }
+}
+
+double DubokSDR::getFrequency(const int direction, const size_t channel) const
+{
+  return(getFrequency(direction, channel, "MAIN"));
+}
+
+double DubokSDR::getFrequency(const int direction, const size_t channel, const std::string &name) const
+{
+  return(curFrequency);
+}
+
+SoapySDR::RangeList DubokSDR::getBandwidthRange(const int direction, const size_t channel) const
+{
+  SoapySDR::RangeList result;
+
+  // Call into the older deprecated listBandwidths() call
+  for(auto &bw: this->listBandwidths(direction, channel))
+    result.push_back(SoapySDR::Range(bw, bw));
+
+  return(result);
+}
+
+std::vector<std::string> DubokSDR::listFrequencies(const int direction, const size_t channel) const
+{
+  std::vector<std::string> result;
+  result.push_back("MAIN");
+  return(result);
+}
+
+SoapySDR::RangeList DubokSDR::getFrequencyRange(const int direction, const size_t channel) const
+{
+  return(getFrequencyRange(direction, channel, "MAIN"));
+}
+
+SoapySDR::RangeList DubokSDR::getFrequencyRange(const int direction, const size_t channel, const std::string &name) const
+{
+  SoapySDR::RangeList result;
+
+  if(name=="MAIN") result.push_back(SoapySDR::Range(minFrequency, maxFrequency));
+
+  return(result);
+}
+
+SoapySDR::ArgInfoList DubokSDR::getFrequencyArgsInfo(const int direction, const size_t channel) const
+{
+  // No frequency args yet
+  SoapySDR::ArgInfoList result;
+  return(result);
+}
+
+/*******************************************************************
+ * Sample Rate API
+ ******************************************************************/
+
+void DubokSDR::setSampleRate(const int direction, const size_t channel, const double rate)
+{
+  int newRate = (int)rate;
+
+  // If given rate valid...
+  if((newRate==defaultSampleRate) && (newRate!=sampleRate))
+  {
+    fprintf(stderr, "setSampleRate(%d): Setting new rate...\n", newRate);
+    // Set new sample rate
+    sampleRate = newRate;
+    // Reopen ALSA device
+    if(alsaDevice.isOpen())
+    {
+      alsaDevice.close();
+      alsaDevice.open(alsaDeviceName, sampleRate, chunkCount * chunkSize, chunkSize);
+    }
+    fprintf(stderr, "setSampleRate(%d): DONE!\n", newRate);
+  }
+}
+
+double DubokSDR::getSampleRate(const int direction, const size_t channel) const
+{
+  return(sampleRate);
+}
+
+std::vector<double> DubokSDR::listSampleRates(const int direction, const size_t channel) const
+{
+  std::vector<double> result;
+  result.push_back(defaultSampleRate);
+  return(result);
+}
+
+/*******************************************************************
+ * Bandwidth API
+ ******************************************************************/
+
+void DubokSDR::setBandwidth(const int direction, const size_t channel, const double bw)
+{
+  // Same as sample rates
+  setSampleRate(direction, channel, bw);
+}
+
+double DubokSDR::getBandwidth(const int direction, const size_t channel) const
+{
+  // Same as sample rates
+  return(getSampleRate(direction, channel));
+}
+
+std::vector<double> DubokSDR::listBandwidths(const int direction, const size_t channel) const
+{
+  // Same as sample rates
+  return(listSampleRates(direction, channel));
+}
+
+void DubokSDR::setDCOffsetMode(const int direction, const size_t channel, const bool automatic)
+{
+  // No DC offset yet
+}
+
+bool DubokSDR::getDCOffsetMode(const int direction, const size_t channel) const
+{
+  // No DC offset yet
+  return(false);
+}
+
+bool DubokSDR::hasDCOffset(const int direction, const size_t channel) const
+{
+  // No DC offset yet
+  return(false);
+}
+
+/*******************************************************************
+ * Settings API
+ ******************************************************************/
+
+SoapySDR::ArgInfoList DubokSDR::getSettingInfo(void) const
+{
+  SoapySDR::ArgInfoList result;
+
+  {
+    SoapySDR::ArgInfo info;
+    info.key = "biasT";
+    info.value = "false";
+    info.name = "BiasT enable";
+    info.description = "BiasT control.";
+    info.type = SoapySDR::ArgInfo::BOOL;
+    result.push_back(info);
+  }
+
+  {
+    SoapySDR::ArgInfo info;
+    info.key = "lna";
+    info.value = "false";
+    info.name = "LNA enable";
+    info.description = "LNA control.";
+    info.type = SoapySDR::ArgInfo::BOOL;
+    result.push_back(info);
+  }
+
+  {
+    SoapySDR::ArgInfo info;
+    info.key = "highZ";
+    info.value = "false";
+    info.name = "HighZ enable";
+    info.description = "HighZ input control.";
+    info.type = SoapySDR::ArgInfo::BOOL;
+    result.push_back(info);
+  }
+
+  {
+    SoapySDR::ArgInfo info;
+    info.key = "attenuator";
+    info.value = "false";
+    info.name = "Attenuation level";
+    info.description = "Attenuator control.";
+    info.type = SoapySDR::ArgInfo::INT;
+    result.push_back(info);
+  }
+
+  {
+    SoapySDR::ArgInfo info;
+    info.key = "charger";
+    info.value = "false";
+    info.name = "Charger status";
+    info.description = "Battery charger status.";
+    info.type = SoapySDR::ArgInfo::BOOL;
+    result.push_back(info);
+  }
+
+  {
+    SoapySDR::ArgInfo info;
+    info.key = "voltage";
+    info.value = "0.0";
+    info.name = "Battery voltage";
+    info.description = "Battery voltage in volts.";
+    info.type = SoapySDR::ArgInfo::FLOAT;
+    result.push_back(info);
+  }
+
+  return(result);
+}
+
+void DubokSDR::writeSetting(const std::string &key, const std::string &value)
+{
+  fprintf(stderr, "writeSetting('%s', '%s')\n", key.c_str(), value.c_str());
+
+  if(key=="biasT" && !!(switches & GPIO::SW_BIAST)!=(value=="true"))
+  {
+    switches = (switches & ~GPIO::SW_BIAST) | (value=="true"? GPIO::SW_BIAST : 0);
+    updateRadio();
+  }
+
+  if(key=="highZ" && !!(switches & GPIO::SW_HIGHZ)!=(value=="true"))
+  {
+    switches = (switches & ~GPIO::SW_HIGHZ) | (value=="true"? GPIO::SW_HIGHZ : 0);
+    updateRadio();
+  }
+
+  if(key=="lna" && !!(switches & GPIO::SW_PREAMP)!=(value=="true"))
+  {
+    switches = (switches & ~GPIO::SW_PREAMP) | (value=="true"? GPIO::SW_PREAMP : 0);
+    updateRadio();
+  }
+
+  if(key=="attenuator" && stoi(value)!=attenuator)
+  {
+    attenuator = std::max(0, std::min(30, stoi(value)));
+    updateRadio();
+  }
+}
+
+std::string DubokSDR::readSetting(const std::string &key) const
+{
+  if(key=="biasT")       return std::to_string(!!(switches & GPIO::SW_BIAST));
+  if(key=="highZ")       return std::to_string(!!(switches & GPIO::SW_HIGHZ));
+  if(key=="lna")         return std::to_string(!!(switches & GPIO::SW_PREAMP));
+  if(key=="attenuator")  return std::to_string(attenuator);
+  if(key=="voltage")     return std::to_string(stmDevice.getVbat());
+  if(key=="charger")     return std::to_string(false);
+
+  return "";
+}
+
+/***********************************************************************
+ * Find available devices
+ **********************************************************************/
+SoapySDR::KwargsList findDubokSDR(const SoapySDR::Kwargs &args)
+{
+    (void)args;
+    //locate the device on the system...
+    //return a list of 0, 1, or more argument maps that each identify a device
+
+    return(SoapySDR::KwargsList());
+}
+
+/***********************************************************************
+ * Make device instance
+ **********************************************************************/
+SoapySDR::Device *makeDubokSDR(const SoapySDR::Kwargs &args)
+{
+    (void)args;
+    //create an instance of the device object given the args
+    //here we will translate args into something used in the constructor
+    return(new DubokSDR());
+}
+
+/***********************************************************************
+ * Registration
+ **********************************************************************/
+static SoapySDR::Registry registerDubokSDR("dubok", &findDubokSDR, &makeDubokSDR, SOAPY_SDR_ABI_VERSION);
