@@ -86,97 +86,18 @@ bool DubokSDR::updateRadio()
   return(stmDevice.update(frequency, switches, attenuator, gain));
 }
 
-unsigned int DubokSDR::getFirmwareVersion() const
-{
-  unsigned int version = 0;
-
-  // If got firmware version from the STM device...
-  return(stmDevice.getStatus(0, 0, 0, 0, 0, &version)? version:0);
-}
-
-bool DubokSDR::updateFirmware(const char *firmwareFile, bool force) const
-{
-  // Assume no firmware for now
-  unsigned int oldVersion = 0;
-  unsigned int newVersion = 0;
-  unsigned int addr, len;
-  const char *p;
-
-  // Get current firmware version
-  oldVersion = getFirmwareVersion();
-  if(!oldVersion)
-    fprintf(stderr, "updateFirmware('%s'): Failed obtaining current version!\n", firmwareFile);
-
-  // Obtain new firmware version from the filename
-  p = strrchr(firmwareFile, '/');
-  if(p && (sscanf(p, "malahit-r1-fw-%u.bin", &newVersion)!=1)) newVersion = 0;
-
-  // If updating firmware...
-  if((newVersion > oldVersion) || force)
-  {
-    unsigned char buf[0x4000];
-
-    fprintf(stderr, "updateFirmware('%s'): Updating firmware %03u => %03u...\n", firmwareFile, oldVersion, newVersion);
-
-    FILE *F = fopen(firmwareFile, "rb");
-    if(!F)
-    {
-      fprintf(stderr, "updateFirmware('%s'): Failed opening file!\n", firmwareFile);
-      return(false);
-    }
-
-    // Hard-reset STM device
-    stmDevice.reset();
-/*Geo
-    // Program firmware
-    for(addr = len = 0 ; addr < STM::FIRMWARE_SIZE ; addr += len)
-    {
-      // Read next 16kB firmware block from file
-      len = fread(buf, 1, 0x4000, F);
-      if(!len) break;
-
-      // Send data to the STM device
-      if(!stmDevice.fwWrite(buf, addr, len))
-      {
-        fprintf(stderr, "updateFirmware('%s'): Failed writing %d bytes to 0x%X)!\n", firmwareFile, len, addr);
-        fclose(F);
-        return(false);
-      }
-    }
-*/
-    // Done with the file
-    fclose(F);
-
-    // Hard-reset STM device
-    stmDevice.reset();
-
-    // Check the updated firmware version
-    oldVersion = getFirmwareVersion();
-    if(oldVersion != newVersion)
-    {
-      fprintf(stderr, "updateFirmware('%s'): Failed updating firmware, still at version %03u!\n", firmwareFile, oldVersion);
-      return(false);
-    }
-
-    fprintf(stderr, "updateFirmware('%s'): Updated 0x%X bytes, version is %03u.\n", firmwareFile, addr, oldVersion);
-  }
-
-  // We are ok
-  return(true);
-}
-
 /*******************************************************************
  * Identification API
  ******************************************************************/
 
 std::string DubokSDR::getDriverKey(void) const
 {
-  return("DubokSDR");
+  return("Malahit");
 }
 
 std::string DubokSDR::getHardwareKey(void) const
 {
-  return("DubokSDR");
+  return("R1");
 }
 
 SoapySDR::Kwargs DubokSDR::getHardwareInfo(void) const

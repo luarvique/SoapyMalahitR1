@@ -231,12 +231,6 @@ class DubokSDR : public SoapySDR::Device
 
     bool reportBattery(size_t samples);
       // Report SW6106 status.
-
-    unsigned int getFirmwareVersion() const;
-      // Get current STM firmware version, as an integer.
-
-    bool updateFirmware(const char *firmwareFile, bool force) const;
-      // Update STM chip firmware as needed.
 };
 
 #endif // DUBOKSDR_HPP
