@@ -3,7 +3,7 @@
 # We recommend that the support module be built in-tree with the driver.
 ########################################################################
 cmake_minimum_required(VERSION 2.6)
-project(SoapySDRDubokSDR CXX)
+project(SoapyMalahitSDR CXX)
 enable_testing()
 
 #select the release build type by default to get optimization flags
@@ -46,8 +46,8 @@ endif()
 
 include_directories(${ALSA_INCLUDE_DIRS})
 SOAPY_SDR_MODULE_UTIL(
-    TARGET DubokSDR
-    SOURCES DubokSDR.cpp
+    TARGET MalahitSDR
+    SOURCES MalahitSDR.cpp
     SOURCES GPIO.cpp
     SOURCES ALSA.cpp
     SOURCES I2C.cpp

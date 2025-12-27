@@ -1,4 +1,4 @@
-#include "DubokSDR.hpp"
+#include "MalahitSDR.hpp"
 #include <SoapySDR/Registry.hpp>
 
 #include <stdio.h>
@@ -18,7 +18,7 @@ typedef struct
   char padding[3];
 } STMState;
 
-DubokSDR::DubokSDR()
+MalahitSDR::MalahitSDR()
 {
   // Hard-reset attached hardware
   stmDevice.reset();
@@ -28,13 +28,13 @@ DubokSDR::DubokSDR()
   updateRadio();
 }
 
-DubokSDR::~DubokSDR()
+MalahitSDR::~MalahitSDR()
 {
   // Close audio device
   alsaDevice.close();
 }
 
-bool DubokSDR::reportBattery(size_t samples)
+bool MalahitSDR::reportBattery(size_t samples)
 {
   float voltage;
   float current;
@@ -74,7 +74,7 @@ bool DubokSDR::reportBattery(size_t samples)
   return(result);
 }
 
-bool DubokSDR::updateRadio()
+bool MalahitSDR::updateRadio()
 {
   // Apply frequency correction
   unsigned int frequency = curFrequency * (1.0 + curFreqCorrection / 1000000.0);
@@ -90,17 +90,17 @@ bool DubokSDR::updateRadio()
  * Identification API
  ******************************************************************/
 
-std::string DubokSDR::getDriverKey(void) const
+std::string MalahitSDR::getDriverKey(void) const
 {
   return("Malahit");
 }
 
-std::string DubokSDR::getHardwareKey(void) const
+std::string MalahitSDR::getHardwareKey(void) const
 {
   return("R1");
 }
 
-SoapySDR::Kwargs DubokSDR::getHardwareInfo(void) const
+SoapySDR::Kwargs MalahitSDR::getHardwareInfo(void) const
 {
   SoapySDR::Kwargs result;
 
@@ -113,7 +113,7 @@ SoapySDR::Kwargs DubokSDR::getHardwareInfo(void) const
  * Channels API
  ******************************************************************/
 
-size_t DubokSDR::getNumChannels(const int direction) const
+size_t MalahitSDR::getNumChannels(const int direction) const
 {
   // We only support one channel
   return(1);
@@ -123,7 +123,7 @@ size_t DubokSDR::getNumChannels(const int direction) const
  * Stream API
  ******************************************************************/
 
-std::vector<std::string> DubokSDR::getStreamFormats(const int direction, const size_t channel) const
+std::vector<std::string> MalahitSDR::getStreamFormats(const int direction, const size_t channel) const
 {
   std::vector<std::string> result;
 
@@ -133,19 +133,19 @@ std::vector<std::string> DubokSDR::getStreamFormats(const int direction, const s
   return(result);
 }
 
-std::string DubokSDR::getNativeStreamFormat(const int direction, const size_t channel, double &fullScale) const
+std::string MalahitSDR::getNativeStreamFormat(const int direction, const size_t channel, double &fullScale) const
 {
   // We only support CS16 data format
   return("CS16");
 }
 
-SoapySDR::ArgInfoList DubokSDR::getStreamArgsInfo(const int direction, const size_t channel) const
+SoapySDR::ArgInfoList MalahitSDR::getStreamArgsInfo(const int direction, const size_t channel) const
 {
   SoapySDR::ArgInfoList result;
   return(result);
 }
 
-SoapySDR::Stream *DubokSDR::setupStream(const int direction, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args)
+SoapySDR::Stream *MalahitSDR::setupStream(const int direction, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args)
 {
   // We only have one channel
   if((channels.size()>1) || ((channels.size()>0) && (channels.at(0)>0)))
@@ -159,26 +159,26 @@ SoapySDR::Stream *DubokSDR::setupStream(const int direction, const std::string &
   return(reinterpret_cast<SoapySDR::Stream *>(&alsaDevice));
 }
 
-void DubokSDR::closeStream(SoapySDR::Stream *stream)
+void MalahitSDR::closeStream(SoapySDR::Stream *stream)
 {
   // Close ALSA device
   (reinterpret_cast<ALSA *>(stream))->close();
 }
 
-size_t DubokSDR::getStreamMTU(SoapySDR::Stream *stream) const
+size_t MalahitSDR::getStreamMTU(SoapySDR::Stream *stream) const
 {
   // Assuming that MTU is essentially a chunk
   return(chunkSize);
 }
 
-int DubokSDR::activateStream(SoapySDR::Stream *stream, const int flags, const long long timeNs, const size_t numElems)
+int MalahitSDR::activateStream(SoapySDR::Stream *stream, const int flags, const long long timeNs, const size_t numElems)
 {
   // Open ALSA device
   ALSA *device = reinterpret_cast<ALSA *>(stream);
   return(device->open(alsaDeviceName, sampleRate, chunkCount * chunkSize, chunkSize)? 0 : -1);
 }
 
-int DubokSDR::deactivateStream(SoapySDR::Stream *stream, const int flags, const long long timeNs)
+int MalahitSDR::deactivateStream(SoapySDR::Stream *stream, const int flags, const long long timeNs)
 {
   // Close ALSA device
   ALSA *device = reinterpret_cast<ALSA *>(stream);
@@ -186,7 +186,7 @@ int DubokSDR::deactivateStream(SoapySDR::Stream *stream, const int flags, const 
   return(0);
 }
 
-int DubokSDR::readStream(SoapySDR::Stream *stream, void * const *buffs, const size_t numElems, int &flags, long long &timeNs, const long timeoutUs)
+int MalahitSDR::readStream(SoapySDR::Stream *stream, void * const *buffs, const size_t numElems, int &flags, long long &timeNs, const long timeoutUs)
 {
   // Report SW6106 status
   reportBattery(numElems);
@@ -199,25 +199,25 @@ int DubokSDR::readStream(SoapySDR::Stream *stream, void * const *buffs, const si
  * Direct buffer access API
  ******************************************************************/
 
-size_t DubokSDR::getNumDirectAccessBuffers(SoapySDR::Stream *stream)
+size_t MalahitSDR::getNumDirectAccessBuffers(SoapySDR::Stream *stream)
 {
   // No direct access
   return(0);
 }
 
-int DubokSDR::getDirectAccessBufferAddrs(SoapySDR::Stream *stream, const size_t handle, void **buffs)
+int MalahitSDR::getDirectAccessBufferAddrs(SoapySDR::Stream *stream, const size_t handle, void **buffs)
 {
   // No direct access
   return(-1);
 }
 
-int DubokSDR::acquireReadBuffer(SoapySDR::Stream *stream, size_t &handle, const void **buffs, int &flags, long long &timeNs, const long timeoutUs)
+int MalahitSDR::acquireReadBuffer(SoapySDR::Stream *stream, size_t &handle, const void **buffs, int &flags, long long &timeNs, const long timeoutUs)
 {
   // No direct access
   return(-1);
 }
 
-void DubokSDR::releaseReadBuffer(SoapySDR::Stream *stream, const size_t handle)
+void MalahitSDR::releaseReadBuffer(SoapySDR::Stream *stream, const size_t handle)
 {
   // No direct access
 }
@@ -226,7 +226,7 @@ void DubokSDR::releaseReadBuffer(SoapySDR::Stream *stream, const size_t handle)
  * Antenna API
  ******************************************************************/
 
-std::vector<std::string> DubokSDR::listAntennas(const int direction, const size_t channel) const
+std::vector<std::string> MalahitSDR::listAntennas(const int direction, const size_t channel) const
 {
   std::vector<std::string> result;
   result.push_back("Regular");
@@ -234,7 +234,7 @@ std::vector<std::string> DubokSDR::listAntennas(const int direction, const size_
   return(result);
 }
 
-void DubokSDR::setAntenna(const int direction, const size_t channel, const std::string &name)
+void MalahitSDR::setAntenna(const int direction, const size_t channel, const std::string &name)
 {
   bool loop = name == "Loop";
 
@@ -245,7 +245,7 @@ void DubokSDR::setAntenna(const int direction, const size_t channel, const std::
   }
 }
 
-std::string DubokSDR::getAntenna(const int direction, const size_t channel) const
+std::string MalahitSDR::getAntenna(const int direction, const size_t channel) const
 {
   return(!!(switches & SW_LOOP)? "Loop" : "Regular");
 }
@@ -254,18 +254,18 @@ std::string DubokSDR::getAntenna(const int direction, const size_t channel) cons
  * Frontend corrections API
  ******************************************************************/
 
-bool DubokSDR::hasDCOffsetMode(const int direction, const size_t channel) const
+bool MalahitSDR::hasDCOffsetMode(const int direction, const size_t channel) const
 {
   // No DC offset yet
   return(false);
 }
 
-bool DubokSDR::hasFrequencyCorrection(const int direction, const size_t channel) const
+bool MalahitSDR::hasFrequencyCorrection(const int direction, const size_t channel) const
 {
   return(true);
 }
 
-void DubokSDR::setFrequencyCorrection(const int direction, const size_t channel, const double value)
+void MalahitSDR::setFrequencyCorrection(const int direction, const size_t channel, const double value)
 {
   if(value != curFreqCorrection)
   {
@@ -274,7 +274,7 @@ void DubokSDR::setFrequencyCorrection(const int direction, const size_t channel,
   }
 }
 
-double DubokSDR::getFrequencyCorrection(const int direction, const size_t channel) const
+double MalahitSDR::getFrequencyCorrection(const int direction, const size_t channel) const
 {
   return(curFreqCorrection);
 }
@@ -283,36 +283,36 @@ double DubokSDR::getFrequencyCorrection(const int direction, const size_t channe
  * Gain API
  ******************************************************************/
 
-std::vector<std::string> DubokSDR::listGains(const int direction, const size_t channel) const
+std::vector<std::string> MalahitSDR::listGains(const int direction, const size_t channel) const
 {
   std::vector<std::string> results;
   results.push_back("MAIN");
   return(results);
 }
 
-bool DubokSDR::hasGainMode(const int direction, const size_t channel) const
+bool MalahitSDR::hasGainMode(const int direction, const size_t channel) const
 {
   // No gain mode
   return(false);
 }
 
-void DubokSDR::setGainMode(const int direction, const size_t channel, const bool automatic)
+void MalahitSDR::setGainMode(const int direction, const size_t channel, const bool automatic)
 {
   // No gain control
 }
 
-bool DubokSDR::getGainMode(const int direction, const size_t channel) const
+bool MalahitSDR::getGainMode(const int direction, const size_t channel) const
 {
   // No gain control
   return(false);
 }
 
-void DubokSDR::setGain(const int direction, const size_t channel, const double value)
+void MalahitSDR::setGain(const int direction, const size_t channel, const double value)
 {
   setGain(direction, channel, "MAIN", value);
 }
 
-void DubokSDR::setGain(const int direction, const size_t channel, const std::string &name, const double value)
+void MalahitSDR::setGain(const int direction, const size_t channel, const std::string &name, const double value)
 {
    SoapySDR::Range range = getGainRange(direction, channel, name);
    int v = round(
@@ -327,22 +327,22 @@ void DubokSDR::setGain(const int direction, const size_t channel, const std::str
   }
 }
 
-double DubokSDR::getGain(const int direction, const size_t channel) const
+double MalahitSDR::getGain(const int direction, const size_t channel) const
 {
   return(getGain(direction, channel, "MAIN"));
 }
 
-double DubokSDR::getGain(const int direction, const size_t channel, const std::string &name) const
+double MalahitSDR::getGain(const int direction, const size_t channel, const std::string &name) const
 {
   return(name=="MAIN"? (double)gain : 0.0);
 }
 
-SoapySDR::Range DubokSDR::getGainRange(const int direction, const size_t channel) const
+SoapySDR::Range MalahitSDR::getGainRange(const int direction, const size_t channel) const
 {
   return(getGainRange(direction, channel, "MAIN"));
 }
 
-SoapySDR::Range DubokSDR::getGainRange(const int direction, const size_t channel, const std::string &name) const
+SoapySDR::Range MalahitSDR::getGainRange(const int direction, const size_t channel, const std::string &name) const
 {
   return(name=="MAIN"? SoapySDR::Range(0.0, 63.0) : SoapySDR::Range(0.0, 0.0));
 }
@@ -351,12 +351,12 @@ SoapySDR::Range DubokSDR::getGainRange(const int direction, const size_t channel
  * Frequency API
  ******************************************************************/
 
-void DubokSDR::setFrequency(const int direction, const size_t channel, const double frequency, const SoapySDR::Kwargs &args)
+void MalahitSDR::setFrequency(const int direction, const size_t channel, const double frequency, const SoapySDR::Kwargs &args)
 {
   setFrequency(direction, channel, "MAIN", frequency, args);
 }
 
-void DubokSDR::setFrequency(const int direction, const size_t channel, const std::string &name, const double frequency, const SoapySDR::Kwargs &args)
+void MalahitSDR::setFrequency(const int direction, const size_t channel, const std::string &name, const double frequency, const SoapySDR::Kwargs &args)
 {
   // If frequency changes...
   if(frequency != curFrequency)
@@ -367,17 +367,17 @@ void DubokSDR::setFrequency(const int direction, const size_t channel, const std
   }
 }
 
-double DubokSDR::getFrequency(const int direction, const size_t channel) const
+double MalahitSDR::getFrequency(const int direction, const size_t channel) const
 {
   return(getFrequency(direction, channel, "MAIN"));
 }
 
-double DubokSDR::getFrequency(const int direction, const size_t channel, const std::string &name) const
+double MalahitSDR::getFrequency(const int direction, const size_t channel, const std::string &name) const
 {
   return(curFrequency);
 }
 
-SoapySDR::RangeList DubokSDR::getBandwidthRange(const int direction, const size_t channel) const
+SoapySDR::RangeList MalahitSDR::getBandwidthRange(const int direction, const size_t channel) const
 {
   SoapySDR::RangeList result;
 
@@ -388,19 +388,19 @@ SoapySDR::RangeList DubokSDR::getBandwidthRange(const int direction, const size_
   return(result);
 }
 
-std::vector<std::string> DubokSDR::listFrequencies(const int direction, const size_t channel) const
+std::vector<std::string> MalahitSDR::listFrequencies(const int direction, const size_t channel) const
 {
   std::vector<std::string> result;
   result.push_back("MAIN");
   return(result);
 }
 
-SoapySDR::RangeList DubokSDR::getFrequencyRange(const int direction, const size_t channel) const
+SoapySDR::RangeList MalahitSDR::getFrequencyRange(const int direction, const size_t channel) const
 {
   return(getFrequencyRange(direction, channel, "MAIN"));
 }
 
-SoapySDR::RangeList DubokSDR::getFrequencyRange(const int direction, const size_t channel, const std::string &name) const
+SoapySDR::RangeList MalahitSDR::getFrequencyRange(const int direction, const size_t channel, const std::string &name) const
 {
   SoapySDR::RangeList result;
 
@@ -409,7 +409,7 @@ SoapySDR::RangeList DubokSDR::getFrequencyRange(const int direction, const size_
   return(result);
 }
 
-SoapySDR::ArgInfoList DubokSDR::getFrequencyArgsInfo(const int direction, const size_t channel) const
+SoapySDR::ArgInfoList MalahitSDR::getFrequencyArgsInfo(const int direction, const size_t channel) const
 {
   // No frequency args yet
   SoapySDR::ArgInfoList result;
@@ -420,7 +420,7 @@ SoapySDR::ArgInfoList DubokSDR::getFrequencyArgsInfo(const int direction, const 
  * Sample Rate API
  ******************************************************************/
 
-void DubokSDR::setSampleRate(const int direction, const size_t channel, const double rate)
+void MalahitSDR::setSampleRate(const int direction, const size_t channel, const double rate)
 {
   int newRate = (int)rate;
 
@@ -440,12 +440,12 @@ void DubokSDR::setSampleRate(const int direction, const size_t channel, const do
   }
 }
 
-double DubokSDR::getSampleRate(const int direction, const size_t channel) const
+double MalahitSDR::getSampleRate(const int direction, const size_t channel) const
 {
   return(sampleRate);
 }
 
-std::vector<double> DubokSDR::listSampleRates(const int direction, const size_t channel) const
+std::vector<double> MalahitSDR::listSampleRates(const int direction, const size_t channel) const
 {
   std::vector<double> result;
   result.push_back(defaultSampleRate);
@@ -456,36 +456,36 @@ std::vector<double> DubokSDR::listSampleRates(const int direction, const size_t 
  * Bandwidth API
  ******************************************************************/
 
-void DubokSDR::setBandwidth(const int direction, const size_t channel, const double bw)
+void MalahitSDR::setBandwidth(const int direction, const size_t channel, const double bw)
 {
   // Same as sample rates
   setSampleRate(direction, channel, bw);
 }
 
-double DubokSDR::getBandwidth(const int direction, const size_t channel) const
+double MalahitSDR::getBandwidth(const int direction, const size_t channel) const
 {
   // Same as sample rates
   return(getSampleRate(direction, channel));
 }
 
-std::vector<double> DubokSDR::listBandwidths(const int direction, const size_t channel) const
+std::vector<double> MalahitSDR::listBandwidths(const int direction, const size_t channel) const
 {
   // Same as sample rates
   return(listSampleRates(direction, channel));
 }
 
-void DubokSDR::setDCOffsetMode(const int direction, const size_t channel, const bool automatic)
+void MalahitSDR::setDCOffsetMode(const int direction, const size_t channel, const bool automatic)
 {
   // No DC offset yet
 }
 
-bool DubokSDR::getDCOffsetMode(const int direction, const size_t channel) const
+bool MalahitSDR::getDCOffsetMode(const int direction, const size_t channel) const
 {
   // No DC offset yet
   return(false);
 }
 
-bool DubokSDR::hasDCOffset(const int direction, const size_t channel) const
+bool MalahitSDR::hasDCOffset(const int direction, const size_t channel) const
 {
   // No DC offset yet
   return(false);
@@ -495,7 +495,7 @@ bool DubokSDR::hasDCOffset(const int direction, const size_t channel) const
  * Settings API
  ******************************************************************/
 
-SoapySDR::ArgInfoList DubokSDR::getSettingInfo(void) const
+SoapySDR::ArgInfoList MalahitSDR::getSettingInfo(void) const
 {
   SoapySDR::ArgInfoList result;
 
@@ -562,7 +562,7 @@ SoapySDR::ArgInfoList DubokSDR::getSettingInfo(void) const
   return(result);
 }
 
-void DubokSDR::writeSetting(const std::string &key, const std::string &value)
+void MalahitSDR::writeSetting(const std::string &key, const std::string &value)
 {
   fprintf(stderr, "writeSetting('%s', '%s')\n", key.c_str(), value.c_str());
 
@@ -591,7 +591,7 @@ void DubokSDR::writeSetting(const std::string &key, const std::string &value)
   }
 }
 
-std::string DubokSDR::readSetting(const std::string &key) const
+std::string MalahitSDR::readSetting(const std::string &key) const
 {
   if(key=="biasT")       return std::to_string(!!(switches & SW_BIAST));
   if(key=="highZ")       return std::to_string(!!(switches & SW_HIGHZ));
@@ -606,7 +606,7 @@ std::string DubokSDR::readSetting(const std::string &key) const
 /***********************************************************************
  * Find available devices
  **********************************************************************/
-SoapySDR::KwargsList findDubokSDR(const SoapySDR::Kwargs &args)
+SoapySDR::KwargsList findMalahitSDR(const SoapySDR::Kwargs &args)
 {
     (void)args;
     //locate the device on the system...
@@ -618,15 +618,15 @@ SoapySDR::KwargsList findDubokSDR(const SoapySDR::Kwargs &args)
 /***********************************************************************
  * Make device instance
  **********************************************************************/
-SoapySDR::Device *makeDubokSDR(const SoapySDR::Kwargs &args)
+SoapySDR::Device *makeMalahitSDR(const SoapySDR::Kwargs &args)
 {
     (void)args;
     //create an instance of the device object given the args
     //here we will translate args into something used in the constructor
-    return(new DubokSDR());
+    return(new MalahitSDR());
 }
 
 /***********************************************************************
  * Registration
  **********************************************************************/
-static SoapySDR::Registry registerDubokSDR("malahit-rr", &findDubokSDR, &makeDubokSDR, SOAPY_SDR_ABI_VERSION);
+static SoapySDR::Registry registerMalahitSDR("malahit", &findMalahitSDR, &makeMalahitSDR, SOAPY_SDR_ABI_VERSION);

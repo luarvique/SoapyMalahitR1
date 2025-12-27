@@ -1,5 +1,5 @@
-#ifndef DUBOKSDR_HPP
-#define DUBOKSDR_HPP
+#ifndef MALAHITSDR_HPP
+#define MALAHITSDR_HPP
 
 #include <SoapySDR/Device.hpp>
 
@@ -7,7 +7,7 @@
 #include "GPIO.hpp"
 #include "STM.hpp"
 
-class DubokSDR : public SoapySDR::Device
+class MalahitSDR : public SoapySDR::Device
 {
   public:
     static const unsigned int SW_HIGHZ  = 0x0004;
@@ -15,8 +15,8 @@ class DubokSDR : public SoapySDR::Device
     static const unsigned int SW_BIAST  = 0x0001;
     static const unsigned int SW_LOOP   = 0x0002;
 
-    DubokSDR();
-    ~DubokSDR();
+    MalahitSDR();
+    ~MalahitSDR();
 
     /*******************************************************************
      * Identification API
@@ -233,4 +233,4 @@ class DubokSDR : public SoapySDR::Device
       // Report SW6106 status.
 };
 
-#endif // DUBOKSDR_HPP
+#endif // MALAHITSDR_HPP
