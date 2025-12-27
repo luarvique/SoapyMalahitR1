@@ -629,4 +629,4 @@ SoapySDR::Device *makeMalahitSDR(const SoapySDR::Kwargs &args)
 /***********************************************************************
  * Registration
  **********************************************************************/
-static SoapySDR::Registry registerMalahitSDR("malahit", &findMalahitSDR, &makeMalahitSDR, SOAPY_SDR_ABI_VERSION);
+static SoapySDR::Registry registerMalahitSDR("malahit-rr", &findMalahitSDR, &makeMalahitSDR, SOAPY_SDR_ABI_VERSION);
