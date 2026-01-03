@@ -47,11 +47,14 @@ endif()
 include_directories(${ALSA_INCLUDE_DIRS})
 SOAPY_SDR_MODULE_UTIL(
     TARGET MalahitSDR
-    SOURCES MalahitSDR.cpp
-    SOURCES GPIO.cpp
-    SOURCES ALSA.cpp
-    SOURCES I2C.cpp
-    SOURCES SPI.cpp
-    SOURCES STM.cpp
-    LIBRARIES ${ALSA_LIBRARIES} gpiod
+    SOURCES
+        MalahitSDR.cpp
+        GPIO.cpp
+        ALSA.cpp
+        I2C.cpp
+        SPI.cpp
+        STM.cpp
+    LIBRARIES
+        ${ALSA_LIBRARIES}
+        gpiod
 )
